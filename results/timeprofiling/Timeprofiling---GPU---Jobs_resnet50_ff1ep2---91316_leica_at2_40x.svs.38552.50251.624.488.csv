@@ -1,0 +1,2 @@
+,PreparationTime,ColorDeconvTime,TotalTileLoadingTime,CKPTLoadingTime,ModelInfernceTime,DetectionTime,ROIShape,NumObjects
+0,0.004,0.314,0.317,1.451,1.549,6.384,"(488, 624)",230

@@ -1,0 +1,3 @@
+[submodule "luminoth"]
+	path = luminoth
+	url = https://github.com/cramraj8/luminoth.git
