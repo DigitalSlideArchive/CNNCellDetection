@@ -9,20 +9,36 @@ First you have to clone the Luminoth repo either from its official repo or the f
 1. Official repo: https://github.com/tryolabs/luminoth.git
 2. Forked Modified repo: https://github.com/cramraj8/luminoth.git
 
+Forked repo has,
+
+* ResNet block 3 **num_units** hyper-parameter exposed in base_config.yml for all ResNet variants
+* provided ```img = input_img[:, :, :num_channels]``` in dataset loading function
+ to facilitate gray image loading and unncessary TensorFlow reshaping exceptions.
+* provided end-points in feature extraction from R-CNN layers
+* exposed base_config.yml in the root folder of the application
+
 
 
 # Data Generation
 
 
-Raw data can be found in different formats. However, we need to bring that to **PascalVoc** format in order to train the model.
-PascalVoc data folder will look like
+Raw data can be found in different formats. Either in csv file or **PascalVoc** format in order to train the model.
+
+1. csv file only needs to contain the following columns, and the columns names can be overidden by input argument.
+```
+    a. image_id
+    b. bounding box coordinates in either convention
+            - x_min, y_min, x_max, y_max
+            - x_center, y_center, width, height
+    c. class label(for class-agnostic model, represent by objectness class)
+```
+
+2. PascalVoc data folder should look like below,
 
 
-1. Folder structure
-----------------
 
 ```
-  Data
+   Data
     ├── annotations                     - Folder contains XML ground truth annotations.
     │
     │
@@ -32,82 +48,23 @@ PascalVoc data folder will look like
     │       └── train.py                - contains the image_ids that is going to be used for training.
     │
     │
-    ├── JPEGImages                      - Folder contains JPEG/PNG images.
-    │
-    └── test_JPEGImages                 - Folder contains test JPEG/PNG images for inference and testing.
-
-
+    └── JPEGImages                      - Folder contains JPEG/PNG images.
 ```
 
 
-
-
-## 2. Example
-
-If our raw dataset has this following format of annotations, we need to convert the csv file to xml file.
-
-PascalVoc format recommeds annotations in XML.
-Basic information we need from csv file are,
-```
-    1. annotations for each image converted into each XML file
-            a. image_id
-            b. each bounding box coordinates in either convention
-                - x_min, y_min, x_max, y_max
-                - x_center, y_center, width, height
-            c. class label for each bounding box objects
-                for class-agnostic model, we can represent objects into objectness class
-```
-
-
-## 2.1 XML format:
-
-
-```
-    root: annotation: version: 1.0
-        subelement: folder: <project_name>
-        subelement: filename: <image_name>
-        subelement: source
-            subelement: database: database_name
-            subelement: annotation: <project_name>
-            subelement: image: None
-            subelement: flickrid: None
-        subelement: owner: <author_name>
-        subelement: size
-            subelement: width : <width_value>
-            subelement: height : <height_value>
-            subelement: depth : <depth_value>
-        subelement: segmented: '0'
-
-    .... continues to include each objects ....
-
-        subelement: object
-            subelement: name: <class_name>
-            subelement: pose: 'Unspecified'
-            subelement: truncated: '0'
-            subelement: difficult: '0'
-            subelement: bndbox
-                subelement: xmin : <xmin_value>
-                subelement: ymin : <ymin_value>
-                subelement: xmax : <xmax_value>
-                subelement: ymax : <ymax_value>
-
-            Above 'object block' repeatedly added to the root to represent each object properties.
-
-
-```
-
-to create txt files inside **ImageSets > Main** , by running the **write_txt.py**
 
 
 
 ## To create tfrecord data
 
-Place **image**, **annotations**, **train.txt** in appropriate arrangements inside the '**pascalvoc_format_data**' folder.
+Either place **image**, **annotations**, **train.txt** in appropriate arrangements inside the '**pascalvoc_format_data**' folder or
+have a csv file in appropriate format.
 
-* if you are using Mac, make sure to delete all **.DS_Store** files in each folder hierarchies inside '**pascalvoc_format_data.**')
 
 
-CLI:
+## Luminoth CLI:
+
+from PascalVoc format to tfrecord generation
 ```
     $ lumi dataset transform \
         --type pascal \
@@ -115,6 +72,17 @@ CLI:
         --output-dir ./data/tf_dataset \
         --split train
 ```
+
+
+from csv format to tfrecord generation
+```
+    $ lumi dataset transform \
+        --type csv \
+        --data-dir ./data/csv_file \
+        --output-dir ./data/tf_dataset \
+        --split train
+```
+
 
 you may want to execute this command by standing inside **luminoth/** folder.
 
@@ -126,18 +94,9 @@ you may want to execute this command by standing inside **luminoth/** folder.
 
 
 # Training
-    1. place tf_dataset inside ./data/tfrecord/
-    2. install luminoth while inside ./luminoth/ subfolder
-        $ pip install -e .
-        make sure you installed tesorflow-gpu (verified version tensorflow-gpu==1.5.0)
-    3. to compose tf_dataset,
-        $ lumi dataset transform \
-        --type pascal \
-        --data-dir ./data/LuminothStyle_Data \
-        --output-dir tf_dataset \
-        --split train
-    4. to train the model using tf_dataset
-        $ lumi train -c examples/sample_config.yml
+```
+$ lumi train -c examples/sample_config.yml
+```
 
 
 
@@ -146,5 +105,50 @@ you may want to execute this command by standing inside **luminoth/** folder.
 
 Two methods of evaluation conducted,
 
-1. Regular method followed by Pascal, COCO challenge, and Luminoth
-2. Method used in WBCProject using Hungarian Algorithm for mapping GT with Predictions
+1. IoU based mAP evaluation method
+2. Objectness/classification confidence score based AUC evaluation method
+        using Hungarian Algorithm for mapping GT with Predictions
+
+
+
+
+
+
+
+
+# Nuclei Detection Web CLI Plugin
+
+An extended plugin for [girder/slicer_cli_web](https://github.com/girder/slicer_cli_web)
+
+To build a Docker Image from this CLI Plugin,
+
+First pull Nuclei-Detection TensorFlow pre-trained model files and place them inside the 'cli' folder because these files
+are going to be placed inside the Docker Image.
+
+wget <link>
+
+
+then run,
+
+```
+$ docker build -t <DockerImage_name>:<DockerImage_tag_version> <Dockerfile_path>
+```
+
+To check the Docker Image is completely running,
+
+1. First create a Docker Container of this Docker Image and navigate into /bin/bash
+```
+$ docker run -ti -v <local_volume_folder>:<Docker_volume_folder> --rm --entrypoint=/bin/bash <DockerImage_name>:<DockerImage_tag_version>
+```
+  Note : -v : used for mouting local and Docker folders so that the changes to the folder will be mirrored immediately.
+
+2. Your default working directory inside the Container bash is '/Applications/', so run a sample test run.
+```
+$ python FasterNuclieDetection/FasterNuclieDetection.py ../91316_leica_at2_40x.svs.38552.50251.624.488.jpg annot.anot timeprofile.csv
+```
+3. Check the annotation and timeprofile files in the local folder.
+
+
+
+
+
