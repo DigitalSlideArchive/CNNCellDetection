@@ -23,5 +23,5 @@ RUN pip install tensorflow==1.5.0
 # ================ Above are installation requirements file ======================
 
 # use entrypoint provided by slicer_cli_web
-WORKDIR $my_cwd_path/Applications
+WORKDIR $my_cwd_path
 ENTRYPOINT ["/build/miniconda/bin/python" ,"/build/slicer_cli_web/server/cli_list_entrypoint.py"]
