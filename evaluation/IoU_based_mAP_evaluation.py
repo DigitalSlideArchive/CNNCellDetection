@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-# @__ramraj__
 
 
 from __future__ import absolute_import, division, print_function
@@ -259,27 +257,6 @@ def get_avg_precision_at_iou(gt_boxes, pred_boxes, iou_thr=0.5):
         'model_thrs': model_thrs}
 
 
-def plot_pr_curve(
-        precisions, recalls, category='Person', label=None, color=None, ax=None):
-    """Simple plotting helper function"""
-
-    # if ax is None:
-    #     fig = plt.figure(figsize=(10, 8))
-    #     ax = plt.gca()
-    fig = plt.figure(figsize=(10, 8))
-    ax = plt.gca()
-
-    if color is None:
-        color = COLORS[0]
-    ax.scatter(recalls, precisions, label=label, s=20, color=color)
-    ax.set_xlabel('recall')
-    ax.set_ylabel('precision')
-    ax.set_title('Precision-Recall curve for {}'.format(category))
-    ax.set_xlim([0.0, 1.3])
-    ax.set_ylim([0.0, 1.2])
-    return ax, fig
-
-
 def run(gt_filename, pred_filename, csv_dict):
 
     with open(gt_filename) as infile:
@@ -289,33 +266,22 @@ def run(gt_filename, pred_filename, csv_dict):
         pred_boxes = json.load(infile)
 
     # Runs it for one IoU threshold
-    # iou_thr = 0.7
-    iou_thr = 0.1
-    start_time = time.time()
-    data = get_avg_precision_at_iou(gt_boxes, pred_boxes, iou_thr=iou_thr)
-    end_time = time.time()
-
-    print('Single IoU calculation took {:.4f} secs'.format(
-        end_time - start_time))
-    csv_dict['IoUCalcTime'].append('{:.4f}'.format(end_time - start_time))
-    print('avg precision: {:.4f}'.format(data['avg_prec']))
-    csv_dict['AvgPrecision'].append('{: .4f}'.format(data['avg_prec']))
-
     start_time = time.time()
     ax = None
     avg_precs = []
     iou_thrs = []
-    for idx, iou_thr in enumerate(np.linspace(0.1, 0.95, 10)):
-        # for idx, iou_thr in enumerate([0.1]):
+    for idx, iou_thr in enumerate(np.linspace(0.1, 0.90, 9)):
+
         data = get_avg_precision_at_iou(gt_boxes, pred_boxes, iou_thr=iou_thr)
-        avg_precs.append(data['avg_prec'])
+
+        csv_dict['Threshold'].append('{}'.format(iou_thr))
         iou_thrs.append(iou_thr)
 
-        precisions = data['precisions']
-        recalls = data['recalls']
-        ax, fig = plot_pr_curve(
-            precisions, recalls, label='{:.2f}'.format(iou_thr), color=COLORS[idx *
-                                                                              2], ax=ax)
+        csv_dict['AvgPrecision'].append('{: .4f}'.format(data['avg_prec']))
+        avg_precs.append(data['avg_prec'])
+
+        print('avg precision : {:.4f} =>  for threshold {}'.format(
+            data['avg_prec'], iou_thr))
 
     # prettify for printing:
     avg_precs = [float('{:.4f}'.format(ap)) for ap in avg_precs]
@@ -323,81 +289,89 @@ def run(gt_filename, pred_filename, csv_dict):
     print('map: {:.2f}'.format(100 * np.mean(avg_precs)))
     print('avg precs: ', avg_precs)
     print('iou_thrs:  ', iou_thrs)
-    plt.legend(loc='upper right', title='IOU Thr', frameon=True)
-    for xval in np.linspace(0.0, 1.0, 11):
-        plt.vlines(xval, 0.0, 1.1, color='gray',
-                   alpha=0.3, linestyles='dashed')
-    end_time = time.time()
-    print('\nPlotting and calculating mAP takes {:.4f} secs'.format(
-        end_time - start_time))
-
-    if MODE == 'SEPARATE':
-        fig.savefig(os.path.join('./Results/Reg-Eval/Plots_PR',
-                                 'PRCurve-%s.png' % gt_filename.split('/')[-1][:-5]),
-                    bbox_inches='tight')
-    else:
-        fig.savefig(os.path.join('./Results/Reg-Eval',
-                                 'PRCurve-Collective-%s.png' % gt_filename.split('/')[-1][:-5]),
-                    bbox_inches='tight')
 
     return csv_dict
 
 
-if __name__ == "__main__":
+def calculate_mAP(args):
 
-    MODE = 'SEPARATE'  # ['SEPARATE', 'COLLECTIVE']
+    gt_path = args["groundtruth_path"]
+    pred_path = args["prediction_path"]
+    dest_path = args["dest_path"]
+    mode = args["mode"]
 
-    PRED_PATH = './Results/Reg-Eval/Pred/'
-    GT_PATH = './Results/Reg-Eval/GT/'
+    if mode != 'Local':
+        pred_files = ['collective-formatted-Pred.json']
+        gt_files = ['collective-formatted-GT.json']
+    else:
+        pred_path = os.path.join(pred_path, 'Pred')
+        gt_path = os.path.join(gt_path, 'GT')
 
-    if not os.path.exists('./Results/Reg-Eval/Plots_PR'):
-        os.makedirs('./Results/Reg-Eval/Plots_PR')
+        gt_files = os.listdir(gt_path)
+        pred_files = os.listdir(pred_path)
 
-    gt_files = os.listdir(GT_PATH)
-    pred_files = os.listdir(PRED_PATH)
-    gt_files = [gt_file for gt_file in gt_files if gt_file != '.DS_Store']
-    pred_files = [
-        pred_file for pred_file in pred_files if pred_file != '.DS_Store']
+        gt_files = [gt_file for gt_file in gt_files if gt_file != '.DS_Store']
+        pred_files = [
+            pred_file for pred_file in pred_files if pred_file != '.DS_Store']
 
-    if MODE != 'SEPARATE':
-        pred_files = ['./Results/Reg-Eval/collective-formatted-Pred.json']
-        gt_files = ['./Results/Reg-Eval/collective-formatted-GT.json']
+        if not os.path.exists(os.path.join(dest_path, 'Plots_PR')):
+            os.makedirs(os.path.join(dest_path,  'Plots_PR'))
 
     print('Total XML files : ', len(gt_files))
     print('Total JSON files : ', len(pred_files))
 
     csv_dict = {}
-    csv_dict['IoUCalcTime'] = []
+    csv_dict['Threshold'] = []
     csv_dict['AvgPrecision'] = []
 
-    if MODE == 'SEPARATE':
+    if MODE == 'Local':
         for pred_file in pred_files:
             for gt_file in gt_files:
                 if pred_file == gt_file:
 
                     print('File : ', pred_file)
 
-                    csv_dict = run(os.path.join(GT_PATH, gt_file),
-                                   os.path.join(PRED_PATH, pred_file),
+                    csv_dict = run(os.path.join(gt_path, gt_file),
+                                   os.path.join(pred_path, pred_file),
                                    csv_dict)
 
                     # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                     # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                     # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                     df = pd.DataFrame(csv_dict, columns=[
-                                      'IoUCalcTime', 'AvgPrecision'])
+                                      'Threshold', 'AvgPrecision'])
                     df.to_csv(
-                        './Results/Reg-Eval/Reg-Eval-individual-stats-table.csv')
+                        os.path.join(dest_path, 'individual-mAP_table.csv'))
                     # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                     # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
                     # +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-    if MODE != 'SEPARATE':
-        csv_dict = run(os.path.join(GT_PATH, gt_file),
-                       os.path.join(PRED_PATH, pred_file),
+    if mode != 'Local':
+        csv_dict = run(os.path.join(gt_path, gt_files[0]),
+                       os.path.join(pred_path, pred_files[0]),
                        csv_dict)
 
         df = pd.DataFrame(csv_dict, columns=[
-            'IoUCalcTime', 'AvgPrecision'])
+            'Threshold', 'AvgPrecision'])
         df.to_csv(
-            './Results/Reg-Eval/Reg-Eval-collective-stats-table.csv')
+            os.path.join(dest_path, 'collective-mAP_table.csv'))
+
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(
+        description='Eval the predictions based on confidence score.')
+
+    parser.add_argument(
+        '--gt', '--groundtruth_path', help='ground truth files path in xml format', required=True)
+    parser.add_argument(
+        '--p', '--prediction_path', help='prediction files path in json format', required=True)
+    parser.add_argument(
+        '--d', '--dest_path', help='destination path to save results and overlays', required=True)
+
+    parser.add_argument(
+        '--m', '--mode', default='Global', choices=['Global', 'Local'], help='mode in which the csv files are run, either as individual experiments or single experiment')
+
+    args = vars(parser.parse_args())
+
+    calculate_mAP(args):

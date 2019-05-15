@@ -3,18 +3,21 @@ Experiments:
 
 TIME PROFILING
 
+
+========================================================================================
+====================== Variants in finetune and endpoint ===============================
+========================================================================================
+
+
 1. FasterRCNN
     BaseModel       : ResNet-50
     Finetune-from   : Block 2
     End-point       : Block 4
     Data            : Miccai + Warwick combined train data
     max_det         : 1000
-    job_dir         : jobs_resnet50/
+    job_dir         : jobs_resnet50_ff2ep4/
 
-        ********* DONE *********
 
-    do_test_visual_inference:
-    do_evaluation:
 
 
 2. FasterRCNN
@@ -25,10 +28,10 @@ TIME PROFILING
     max_det         : 1000
     job_dir         : jobs_resnet50_ff1ep2/
 
-        ********* DONE *********
 
 
-2. FasterRCNN
+
+3. FasterRCNN
     BaseModel       : ResNet-101
     Finetune-from   : Block 1
     End-point       : Block 2
@@ -38,15 +41,31 @@ TIME PROFILING
 
 
 
+3. FasterRCNN
+    BaseModel       : ResNet-101
+    Finetune-from   : Block 2
+    End-point       : Block 4
+    Data            : Miccai + Warwick combined train data
+    max_det         : 1000
+    job_dir         : jobs_resnet101_ff2ep4/
+
+
+========================================================================================
+================================= Variants in block 3 tuning ===========================
+========================================================================================
+
+
 1 . Base Network
 
         resnet_V1
             resnet50
                 ff1ep2
                 ff2ep4
+                block3-num_units = [6]
             resnet101
                 ff1ep2
                 ff2ep4
+                block3-num_units = [6, 12, 18, 23]
 
 
         resnet_V2
@@ -68,30 +87,5 @@ TIME PROFILING
 
 
 
-
-
-
 ========================================================================================
-
-
-
-3. FasterRCNN
-    BaseModel       : ResNet-101
-    Finetune-from   : Block 1
-    End-point       : Block 2
-    Data            : Miccai + Warwick combined train data
-    max_det         : 1000
-    job_dir         : jobs_resnet101_ff1ep2/
-
-
-4. FasterRCNN
-    BaseModel       : ResNet-101
-    Finetune-from   : Block 0
-    End-point       : Block 1
-    Data            : Miccai + Warwick combined train data
-    max_det         : 1000
-    job_dir         : jobs_resnet101_ff0ep1/
-
-
-
 

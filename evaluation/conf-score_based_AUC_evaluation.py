@@ -12,20 +12,14 @@ from scipy.optimize import linear_sum_assignment
 from PIL import Image, ImageDraw
 import cv2
 import matplotlib.pyplot as plt
+import argparse
 
 
 osp = os.path
 
 
-PAD_SIZE = 0
-THRESH_IOU = 0.1
-EXP = './Corrected-Results/WBC_Eval-withcv2andPIL/'
-
-SCALE = 1
-FILL = 0
-
 '''
-Structure of the functions:
+Structure of the each functions:
 |
 |-- load PREDICTIONS Json
 |
@@ -38,15 +32,7 @@ Structure of the functions:
 '''
 
 
-if not os.path.exists(os.path.join(EXP, 'Img-wise-Tables')):
-    os.makedirs(os.path.join(EXP, 'Img-wise-Tables'))
-if not os.path.exists(os.path.join(EXP, 'PNGs')):
-    os.makedirs(os.path.join(EXP, 'PNGs'))
-if not os.path.exists(os.path.join(EXP, 'CV2_PNGs')):
-    os.makedirs(os.path.join(EXP, 'CV2_PNGs'))
-
-
-def draw_rectangle(draw, cv2_draw,  coordinates, color, width=1, fill=0):
+def draw_rectangle(draw,  coordinates, color, width=1, fill=0):
     fill = color + (fill,)
     outline = color + (255,)
 
@@ -63,14 +49,8 @@ def draw_rectangle(draw, cv2_draw,  coordinates, color, width=1, fill=0):
         else:
             draw.rectangle(coords, outline=outline)
 
-        cv2.rectangle(cv2_draw,
-                      (coords[0], coords[1]), (coords[2], coords[3]),
-                      color, 1)
 
-    return cv2_draw
-
-
-def load_pred_json(name, JSON_dict, img_size):
+def load_pred_json(name, JSON_dict, img_size, pad_size=0):
 
     print 'Entering into Pred Loading ....'
 
@@ -95,7 +75,7 @@ def load_pred_json(name, JSON_dict, img_size):
     print('Total Number of Un-Filtered Label Counts per ROI : ', len(pred_list))
 
     # ++++++++++++++++++++++++++ fILTERING ++++++++++++++++++++++++++
-    # Renove the cells, which are close to borders within the PAD_SIZE pixels
+    # Renove the cells, which are close to borders within the pad_size pixels
     pred_filtered_list = []
     for obj in preds:
 
@@ -109,8 +89,8 @@ def load_pred_json(name, JSON_dict, img_size):
 
         # Check if bbox center is inside the valid error measurable region of
         # ROI.
-        if (x_cent >= PAD_SIZE) and (x_cent <= W - PAD_SIZE)\
-                and (y_cent >= PAD_SIZE) and (y_cent <= H - PAD_SIZE):
+        if (x_cent >= pad_size) and (x_cent <= W - pad_size)\
+                and (y_cent >= pad_size) and (y_cent <= H - pad_size):
             # if True:
 
             value = [obj['label'],      # object class - objectness
@@ -138,7 +118,7 @@ def load_pred_json(name, JSON_dict, img_size):
     return pred_filtered_list, JSON_dict
 
 
-def load_gt_xml(name, JSON_dict):
+def load_gt_xml(name, JSON_dict, pad_size=0):
 
     print 'Entering into GT Loading ....'
 
@@ -168,7 +148,7 @@ def load_gt_xml(name, JSON_dict):
     size = [int(si.text) for si in size]
 
     # ++++++++++++++++++++++++++ fILTERING ++++++++++++++++++++++++++
-    # Renove the cells, which are close to borders within the PAD_SIZE pixels
+    # Renove the cells, which are close to borders within the pad_size pixels
     xml_FILTERED_list = []
     for member in root.findall('object'):
         x1 = int(member[4][0].text)
@@ -181,8 +161,8 @@ def load_gt_xml(name, JSON_dict):
 
         # Check if bbox center is inside the valid error measurable region of
         # ROI.
-        if (x_cent >= PAD_SIZE) and (x_cent <= W - PAD_SIZE)\
-                and (y_cent >= PAD_SIZE) and (y_cent <= H - PAD_SIZE):
+        if (x_cent >= pad_size) and (x_cent <= W - pad_size)\
+                and (y_cent >= pad_size) and (y_cent <= H - pad_size):
             # if True:
 
             value = [member[0].text,    # object class - objectness
@@ -223,28 +203,27 @@ def np_vec_no_jit_iou(bboxes1, bboxes2):
     return iou
 
 
-def calculation(json_path, xml_path, final_results_table, collective_table):
+def calculation(json_path, xml_path, final_results_table, collective_table, args):
+
+    image_folder = args["image_path"]
+    dst_folder = args["dest_path"]
+    threshold = args["threshold"]
+    pad_size = args["pad_size"]
+    scale = args["scale"]
+    fill = args["fill"]
 
     print('++++++++++++++++++++++++++++++++++++++++++++++')
 
-    # ROI_DIR = osp.join(osp.abspath(osp.join(xml_path,
-    #                                         '../../')),
-    #                    'JPEGImages',
-    #                    '%s.png' % osp.basename(json_path)[5:-5]
-    #                    )
-    ROI_DIR = osp.join('./test_images/', '%s.png' % osp.basename(json_path)[5:-5]
-                       )
+    image_name = osp.join(image_folder, '%s.png' %
+                          osp.basename(json_path)[5:-5])
 
-    ROI_img = cv2.imread(ROI_DIR)
-
-    image = Image.fromarray(ROI_img.astype(np.uint8))
+    img = cv2.imread(image_name)
+    image = Image.fromarray(img.astype(np.uint8))
     draw = ImageDraw.Draw(image, 'RGBA')
 
-    cv2_draw = ROI_img.copy()
-
     json_dict = {}
-    labels_list, _, img_size = load_gt_xml(xml_path, json_dict)
-    preds_list, _ = load_pred_json(json_path, json_dict, img_size)
+    labels_list, _, img_size = load_gt_xml(xml_path, json_dict, pad_size)
+    preds_list, _ = load_pred_json(json_path, json_dict, img_size, pad_size)
 
     n_preds = len(preds_list)
     n_labels = len(labels_list)
@@ -308,8 +287,8 @@ def calculation(json_path, xml_path, final_results_table, collective_table):
 
         color = (0, 255, 0)
         pred_coord = preds_list[pred_idx][1:5]
-        cv2_draw = draw_rectangle(
-            draw, cv2_draw, pred_coord, color, width=round(3 * SCALE), fill=FILL
+        draw_rectangle(
+            draw, pred_coord, color, width=round(3 * scale), fill=fill
         )
 
     # =========================================================================
@@ -344,8 +323,8 @@ def calculation(json_path, xml_path, final_results_table, collective_table):
         pred_coord = iou_unmatched_row_coords.loc[i]
         color = (0, 0, 255)
 
-        cv2_draw = draw_rectangle(
-            draw, cv2_draw, pred_coord, color, width=round(3 * SCALE), fill=FILL
+        draw_rectangle(
+            draw, pred_coord, color, width=round(3 * scale), fill=fill
         )
 
         collective_table['GTLabel'].append(0)
@@ -363,8 +342,8 @@ def calculation(json_path, xml_path, final_results_table, collective_table):
         color = (255, 0, 0)
         label_coord = iou_unmatched_col_coords.loc[j]
 
-        cv2_draw = draw_rectangle(
-            draw, cv2_draw, label_coord, color, width=round(3 * SCALE), fill=FILL
+        draw_rectangle(
+            draw, label_coord, color, width=round(3 * scale), fill=fill
         )
 
     print("TP = %d, FP = %d, FN = %d" % (TP, FP, FN))
@@ -392,13 +371,11 @@ def calculation(json_path, xml_path, final_results_table, collective_table):
     df = pd.DataFrame(img_wise_score_table,
                       columns=['PredScore', 'GTLabel'])
     sav_file = os.path.join(
-        EXP, 'Img-wise-Tables/table-%s.csv' % ROI_name[:-4])
+        dst_folder, 'Img-wise-Tables/table-%s.csv' % ROI_name[:-4])
     df.to_csv(sav_file,
               index=True)
 
-    image.save(os.path.join(EXP, 'PNGs', 'overlay_%s' % ROI_name))
-    cv2.imwrite(os.path.join(EXP, 'CV2_PNGs', 'overlay_%s' %
-                             ROI_name), cv2_draw)
+    image.save(os.path.join(dst_folder, 'PNGs', 'overlay_%s' % ROI_name))
 
     # =================================================================
     # =================================================================
@@ -407,14 +384,19 @@ def calculation(json_path, xml_path, final_results_table, collective_table):
     return final_results_table, mapping_table
 
 
-if __name__ == '__main__':
+def eval(args):
 
-    # XML_DIR = '../data_preparation/DST_DIR/XML/'
-    XML_DIR = './test_XMLs/'
-    JSON_DIR = './outputs/JSON/'
+    gt_path = args["groundtruth_path"]
+    pred_path = args["prediction_path"]
+    dst_folder = args["dest_path"]
 
-    xml_files = os.listdir(XML_DIR)
-    json_files = os.listdir(JSON_DIR)
+    if not os.path.exists(os.path.join(dst_folder, 'Img-wise-Tables')):
+        os.makedirs(os.path.join(dst_folder, 'Img-wise-Tables'))
+    if not os.path.exists(os.path.join(dst_folder, 'PNGs')):
+        os.makedirs(os.path.join(dst_folder, 'PNGs'))
+
+    xml_files = os.listdir(gt_path)
+    json_files = os.listdir(pred_path)
     xml_files = [xml_file for xml_file in xml_files if xml_file != '.DS_Store']
     json_files = [
         json_file for json_file in json_files if json_file != '.DS_Store']
@@ -444,11 +426,14 @@ if __name__ == '__main__':
                 print 'File : ', json_file
 
                 final_results_table,\
-                    mapping_table = calculation(os.path.join(JSON_DIR, json_file),
+                    mapping_table = calculation(os.path.join(pred_path,
+                                                             json_file),
                                                 os.path.join(
-                                                    XML_DIR, xml_file),
+                                                    gt_path,
+                                                    xml_file),
                                                 final_results_table,
-                                                mapping_table)
+                                                mapping_table,
+                                                args)
 
             # =================================================================
             # =================== Saving Final Results Table ==================
@@ -458,7 +443,7 @@ if __name__ == '__main__':
                               columns=['ROI Name', 'TP', 'FP', 'FN',
                                        'noGT_FP', 'threshold_FP',
                                        'Precision', 'Recall', 'F1-Score'])
-            sav_file = os.path.join(EXP, 'final_results_stats.csv')
+            sav_file = os.path.join(dst_folder, 'final_results_stats.csv')
             df.to_csv(sav_file,
                       index=True)
 
@@ -466,18 +451,49 @@ if __name__ == '__main__':
                               columns=['GTLabel',
                                        'PredScore',
                                        ])
-            sav_file = os.path.join(EXP, 'mapped_table.csv')
+            sav_file = os.path.join(dst_folder, 'mapped_table.csv')
             df.to_csv(sav_file,
                       index=True)
 
             df = pd.DataFrame(final_results_table,
                               columns=['ROI Name', 'TP', 'FP', 'FN', 'Precision', 'Recall', 'F1-Score'])
-            # df = df.sort_values(by=['TP'], ascending=True)
             df = df.sort_values(by=['ROI Name'], ascending=True)
-            sav_file = EXP + 'TP-FP-FN-stats__WBCEval.csv'
+            sav_file = dst_folder + 'TP-FP-FN-stats.csv'
             df.to_csv(sav_file,
                       index=True)
 
             # =================================================================
             # =================================================================
             # =================================================================
+
+
+if __name__ == '__main__':
+    """
+    prediction json file should have 'pred_<image_id>.json' file name, and
+    ground truth annotations should have '<image_id>.xml' file name.
+    """
+
+    parser = argparse.ArgumentParser(
+        description='Eval the predictions based on confidence score.')
+
+    parser.add_argument(
+        '--gt', '--groundtruth_path', help='ground truth files path in xml format', required=True)
+    parser.add_argument(
+        '--p', '--prediction_path', help='prediction files path in json format', required=True)
+    parser.add_argument(
+        '--i', '--image_path', help='input image file paths', required=True)
+    parser.add_argument(
+        '--d', '--dest_path', help='destination path to save results and overlays', required=True)
+
+    parser.add_argument(
+        '--ps', '--pad_size', type=int, default=0, help='pixels left from all 4 borders')
+    parser.add_argument(
+        '--t', '--threshold', type=float, default=0.1, help='IoU threshold to filterout robust TP detections')
+    parser.add_argument(
+        '--s', '--scale', type=int, default=1, help='scale at which draw bounding boxes on overlays')
+    parser.add_argument(
+        '--f', '--fill', type=int, default=0, help='alpha value to fill the region inside bounding box overlays')
+
+    args = vars(parser.parse_args())
+
+    eval(args)

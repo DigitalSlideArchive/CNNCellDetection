@@ -3,6 +3,17 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# ===================
+# Folders to be removed
+utils/overlapping_tiles_detection/
+inference/
+
+
+
+
+
+# ===================
+
 # C extensions
 *.so
 

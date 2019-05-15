@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<executable>
+  <category>HistomicsTK</category>
+  <title>Detect General Nuclie</title>
+  <description>Detect wide rage of nuclie on Hematoxylin channel using deep learning based algorithm</description>
+  <version>0.1.0</version>
+  <acknowledgements>This work is part of the HistomicsTK project.</acknowledgements>
+  <parameters>
+    <label>IO</label>
+    <description>Input/output parameters</description>
+    <image>
+      <name>inputImageFile</name>
+      <label>Input Image</label>
+      <description>Input image</description>
+      <channel>input</channel>
+      <index>0</index>
+    </image>
+    <region>
+      <name>analysis_roi</name>
+      <label>Analysis ROI</label>
+      <description>Region of interest within which the analysis should be done. Must be a four element vector in the format "left, top, width, height" in the space of the base layer. Default value of "-1, -1, -1, -1" indicates that the whole image should be processed.</description>
+      <longflag>analysis_roi</longflag>
+      <default>-1,-1,-1,-1</default>
+    </region>
+    <string-enumeration>
+      <name>nuclei_annotation_format</name>
+      <label>Nuclei annotation format</label>
+      <description>Format of the output nuclei annotations</description>
+      <longflag>nuclei_annotation_format</longflag>
+      <element>bbox</element>
+      <element>boundary</element>
+      <default>bbox</default>
+    </string-enumeration>
+    <file fileExtensions=".anot" reference="inputImageFile">
+      <name>outputNucleiAnnotationFile</name>
+      <label>Output Nuclei Annotation File</label>
+      <description>Output Nuclei annotation file (*.anot)</description>
+      <channel>output</channel>
+      <index>1</index>
+    </file>
+    <file fileExtensions=".csv" reference="inputImageFile">
+      <name>outputNucleiDetectionTimeProfilingFile</name>
+      <label>Output Nuclei Detection Time Profiling File</label>
+      <description>Output Nuclei Detection Time Profiling file (*.csv)</description>
+      <channel>output</channel>
+      <index>2</index>
+    </file>
+  </parameters>
+  <parameters>
+    <label>Tile Preprocessing</label>
+    <description>preprocessing each tile images</description>
+    <string-enumeration>
+      <name>deconv_method</name>
+      <label>Choice of Color Deconvolution Method During Preprocessing</label>
+      <description>Name of the Color Deconvolving Process</description>
+      <longflag>deconv_method</longflag>
+      <element>ruifrok</element>
+      <element>macenko</element>
+      <default>ruifrok</default>
+    </string-enumeration>
+    <string-enumeration>
+      <name>stain_1</name>
+      <label>Choice of Stain 1 on Color Deconvolution Method</label>
+      <description>Name of the Particular Color Deconvolving Process</description>
+      <longflag>stain_1</longflag>
+      <element>hematoxylin</element>
+      <element>dab</element>
+      <element>eosin</element>
+      <element>null</element>
+      <default>hematoxylin</default>
+    </string-enumeration>
+    <string-enumeration>
+      <name>stain_2</name>
+      <label>Choice of Stain 2 on Color Deconvolution Method</label>
+      <description>Name of the Particular Color Deconvolving Process</description>
+      <longflag>stain_2</longflag>
+      <element>hematoxylin</element>
+      <element>dab</element>
+      <element>eosin</element>
+      <element>null</element>
+      <default>dab</default>
+    </string-enumeration>
+    <string-enumeration>
+      <name>stain_3</name>
+      <label>Choice of Stain 3 on Color Deconvolution Method</label>
+      <description>Name of the Particular Color Deconvolving Process</description>
+      <longflag>stain_3</longflag>
+      <element>hematoxylin</element>
+      <element>dab</element>
+      <element>eosin</element>
+      <element>null</element>
+      <default>null</default>
+    </string-enumeration>
+    <integer-vector>
+      <name>stain_1_vector</name>
+      <label>An integer vector brings stain1 vectors</label>
+      <channel>input</channel>
+      <flag>s1_v</flag>
+      <default>-1, -1, -1</default>
+      <description>somthing1</description>
+    </integer-vector>
+    <integer-vector>
+      <name>stain_2_vector</name>
+      <label>An integer vector brings stain2 vectors</label>
+      <channel>input</channel>
+      <flag>s2_v</flag>
+      <default>-1, -1, -1</default>
+      <description>somthing2</description>
+    </integer-vector>
+    <integer-vector>
+      <name>stain_3_vector</name>
+      <label>An integer vector brings stain3 vectors</label>
+      <channel>input</channel>
+      <flag>s3_v</flag>
+      <default>-1, -1, -1</default>
+      <description>somthing3</description>
+    </integer-vector>
+    <!-- <float-vector>
+      <name>reference_mu_lab</name>
+      <flag>f</flag>
+      <label>Choice of Reference mean in LAB Color Space on Reinhard Normalization Method</label>
+      <description>Floating Vector of Mean in LAB Color Space during Color Normalization</description>
+      <default>8.97307880463709, -0.048069533099968385, -0.007750513198518623</default>
+    </float-vector>
+    <float-vector>
+      <name>reference_std_lab</name>
+      <flag>f</flag>
+      <label>Choice of Reference variance in LAB Color Space on Reinhard Normalization Method</label>
+      <description>Floating Vector of Mean in LAB Color Space during Color Normalization</description>
+      <default>0.35412366, 0.08349332, 0.01101242</default>
+    </float-vector> -->
+  </parameters>
+  <parameters>
+    <label>Nuclie Detection</label>
+    <description>Nuclei detection parameters</description>
+    <double>
+      <name>min_prob</name>
+      <label>Minimum Confidence Score Threshold</label>
+      <description>Minimum cut-off probability value to filter out robust detections</description>
+      <longflag>min_prob</longflag>
+      <default>0.1</default>
+    </double>
+    <integer>
+      <name>max_det</name>
+      <label>Maximum Detections</label>
+      <description>Maximum Number of Nuclei Detections</description>
+      <longflag>max_det</longflag>
+      <default>1000</default>
+    </integer>
+    <boolean>
+      <name>ignore_border_nuclei</name>
+      <label>Ignore Border Nuclei</label>
+      <description>Ignore/drop nuclei touching the image/tile border</description>
+      <longflag>ignore_border_nuclei</longflag>
+      <default>false</default>
+    </boolean>
+  </parameters>
+  <parameters advanced="true">
+    <label>WSI Analysis</label>
+    <description>Whole-slide image analysis (WSI) parameters</description>
+    <double>
+      <name>analysis_tile_size</name>
+      <label>Analysis Tile Size</label>
+      <description>Tile size for blockwise analysis</description>
+      <longflag>analysis_tile_size</longflag>
+      <default>1024</default>
+    </double>
+    <double>
+      <name>analysis_mag</name>
+      <label>Analysis Magnification</label>
+      <description>The magnification at which the analysis should be performed.</description>
+      <longflag>analysis_mag</longflag>
+      <default>40</default>
+    </double>
+    <double>
+      <name>min_fgnd_frac</name>
+      <label>Minimum foreground fraction</label>
+      <description>The minimum amount of foreground that must be present in a tile for it to be analyzed</description>
+      <longflag>min_fgnd_frac</longflag>
+      <default>0.25</default>
+    </double>
+  </parameters>
+  <parameters advanced="true">
+    <label>Dask</label>
+    <description>Dask parameters</description>
+    <string>
+      <name>scheduler</name>
+      <label>Scheduler Address</label>
+      <description>Address of a dask scheduler in the format '127.0.0.1:8786'.  Not passing this parameter sets up a dask cluster on the local machine.  'multiprocessing' uses Python multiprocessing.  'multithreading' uses Python multiprocessing in threaded mode.</description>
+      <longflag>scheduler</longflag>
+      <default></default>
+    </string>
+    <integer>
+      <name>num_workers</name>
+      <label>Number of workers</label>
+      <description>Number of dask workers to start while setting up a local cluster internally. If a negative value is specified then the number of workers is set to number of cpu cores on the machine minus the number of workers specified.</description>
+      <longflag>num_workers</longflag>
+      <default>-1</default>
+    </integer>
+    <integer>
+      <name>num_threads_per_worker</name>
+      <label>Number of threads per worker</label>
+      <description>Number of threads to use per worker while setting up a local cluster internally. Must be a positive integer >= 1.</description>
+      <longflag>num_threads_per_worker</longflag>
+      <default>1</default>
+    </integer>
+  </parameters>
+</executable>

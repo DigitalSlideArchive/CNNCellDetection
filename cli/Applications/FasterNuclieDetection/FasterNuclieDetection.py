@@ -33,6 +33,7 @@ import dask.distributed
 
 import tensorflow as tf
 import utils as cli_utils
+from ctk_cli import CLIArgumentParser
 
 
 import histomicstk as htk
@@ -51,70 +52,23 @@ from skimage.filters import threshold_yen, threshold_otsu, threshold_isodata
 logging.basicConfig(level=logging.CRITICAL)
 
 
-CONFIG = '/home/cramraj8/Kitware/NuclieDetection-HistomicsTK-Dask-Plugin/lumi/examples/sample_config.yml'
+CONFIG = '../sample_config.yml'
 
 
 CKPT_INDEX = 36000
 JOB_DIR = 'jobs'
-META_DIR = "/home/cramraj8/Kitware/NuclieDetection-HistomicsTK-Dask-Plugin/lumi/%s/my-run/model.ckpt-%s.meta" % \
+META_DIR = "../%s/my-run/model.ckpt-%s.meta" % \
     (JOB_DIR, CKPT_INDEX)
-CKPT_DIR = "/home/cramraj8/Kitware/NuclieDetection-HistomicsTK-Dask-Plugin/lumi/%s/my-run/model.ckpt-%s" % \
+CKPT_DIR = "../%s/my-run/model.ckpt-%s" % \
     (JOB_DIR, CKPT_INDEX)
 
 
-args = {
-
-
-    # ========== Image 1 ==========
-    # 'inputImageFile': '/home/cramraj8/Kitware/101625.svs',
-    'inputImageFile': '/home/cramraj8/Kitware/0014_BCL2_02.svs',
-    # 'analysis_roi': [7540, 6700, 2400, 2400],
-    'analysis_roi': [-1, -1, -1, -1],
-    'outputTimeProfilingFile': '/home/cramraj8/Kitware/NuclieDetection-HistomicsTK-Dask-Plugin/CLUSTER----Timeprofiling---CPU---jobs_resnet50_ff1ep2---whole_WSI---n_samples40---101625.csv',
-    'output_annotation_dir': '/home/cramraj8/Kitware/NuclieDetection-HistomicsTK-Dask-Plugin/',
-
-
-    'max_det': 1000,
-    'min_prob': 0.1,
-
-    'reference_mu_lab': [8.97307880463709, -0.048069533099968385, -0.007750513198518623],
-    'reference_std_lab': [0.35412366, 0.08349332, 0.01101242],
-
-    'stain_1': 'hematoxylin',
-    'stain_2': 'dab',
-    'stain_3': 'null',
-    'stain_1_vector': [-1, -1, -1],
-    'stain_2_vector': [-1, -1, -1],
-    'stain_3_vector': [-1, -1, -1],
-    'deconv_method': 'ruifrok',
-
-    'ignore_border_nuclei': True,
-
-    'nuclei_annotation_format': 'bbox',  # Must be 'bbox' or 'boundary'
-
-    'morphometry_features': False,
-    'fsd_features': False,
-    'intensity_features': True,
-    'gradient_features': True,
-    'haralick_features': True,
-    'cytoplasm_features': False,
-    'cyto_width': 5,
-    'fsd_bnd_pts': 128,
-    'fsd_freq_bins': 6,
-    'num_glcm_levels': 32,
-    'feature_file_format': 'hdf',
-
-    'min_fgnd_frac': 0.75,
-    'analysis_mag': 40,
-    'analysis_tile_size': 1024,
-
-
-    'scheduler': 'tcp://hpg6-112.maas:8786',
-    'num_workers': -1,
-    'num_threads_per_worker': 1
-}
-
-args = collections.namedtuple('Parameters', args.keys())(**args)
+REFERENCE_MU_LAB = [8.97307880463709, -
+                    0.048069533099968385, -0.007750513198518623]
+REFERENCE_STD_LAB = [0.35412366, 0.08349332, 0.01101242]
+# STAIN_1 = 'hematoxylin'
+# STAIN_2 = 'dab'
+# STAIN_3 = 'null'
 
 
 def detect_tile_nuclei(slide_path, tile_position, args, it_kwargs,
@@ -142,6 +96,7 @@ def detect_tile_nuclei(slide_path, tile_position, args, it_kwargs,
     csv_dict['AnnotationWritingTime'] = []
 
     csv_dict['AnnotationDict'] = []
+    csv_dict['AnalysisDict'] = []
 
     start_time = time.time()
     total_tileloading_start_time = time.time()
@@ -165,8 +120,8 @@ def detect_tile_nuclei(slide_path, tile_position, args, it_kwargs,
 
     im_nmzd = htk_cnorm.reinhard(
         im_tile,
-        args.reference_mu_lab,
-        args.reference_std_lab,
+        REFERENCE_MU_LAB,
+        REFERENCE_STD_LAB,
         src_mu=src_mu_lab,
         src_sigma=src_sigma_lab
     )
@@ -306,91 +261,25 @@ def detect_tile_nuclei(slide_path, tile_position, args, it_kwargs,
     start_time = time.time()
 
     objects_df = pd.DataFrame(objects)
-    formatted_nuclei_det_list = cli_utils.convert_preds_to_utilformat(
-        objects_df,
-        probs,
-        args.ignore_border_nuclei,
-        im_tile_size=args.analysis_tile_size)
+    formatted_annot_list,\
+        formatter_analysis_list = cli_utils.convert_preds_to_utilformat(
+            objects_df,
+            probs,
+            args.ignore_border_nuclei,
+            im_tile_size=args.analysis_tile_size)
 
     nuclei_annot_list = cli_utils.create_tile_nuclei_annotations(
-        formatted_nuclei_det_list, tile_info, args.nuclei_annotation_format)
+        formatted_annot_list, tile_info, args.nuclei_annotation_format)
     csv_dict['AnnotationDict'] = nuclei_annot_list
+
+    csv_dict['AnalysisDict'] = formatter_analysis_list
 
     num_nuclei = len(nuclei_annot_list)
 
     anot_time = time.time() - start_time
     csv_dict['AnnotationWritingTime'] = round(anot_time, 3)
 
-    # =========================================================================
-    # ======================= Compute Features ================================
-    # =========================================================================
-    """
-    # compute nuclei features
-    start_time = time.time()
-
-    stain_names = [args.stain_1, args.stain_2]
-
-    fdata = [None] * 2
-
-    for i in range(2):
-
-        fdata[i] = htk_features.compute_nuclei_features(
-            im_nuclei_seg_mask, im_stains[:, :, i],
-            fsd_bnd_pts=args.fsd_bnd_pts,
-            fsd_freq_bins=args.fsd_freq_bins,
-            num_glcm_levels=args.num_glcm_levels,
-            morphometry_features_flag=(args.morphometry_features and i == 0),
-            fsd_features_flag=(args.fsd_features and i == 0),
-            intensity_features_flag=args.intensity_features,
-            gradient_features_flag=args.gradient_features
-        )
-
-        fdata[i].columns = ['Feature.{}.'.format(
-            stain_names[i]) + col for col in fdata[i].columns]
-
-    fdata = pd.concat(fdata, axis=1)
-
-    fex_time = time.time() - start_time
-
-    slide_name = os.path.basename(slide_path)
-    print('{}, Tile {}, Num nuclei = {}, load_time = {}, nuc_time = {}, anot_time = {}, fex_time = {}'.format(
-        slide_name, tile_position, num_nuclei, prep_time, nuc_time, anot_time, fex_time))
-
-    assert len(nuclei_annot_list) == len(
-        fdata), 'ERROR - {}, Tile {}, num_nuclei != num_feature_rows'.format(slide_name, tile_position)
-
-    return nuclei_annot_list, fdata, (prep_time, anot_time, nuc_time, fex_time)
-    """
-
     return csv_dict
-
-
-def save_nuclei_annotation(nuclei_anot_list, anot_name, out_file_name):
-
-    if isinstance(anot_name, list):
-
-        assert(len(anot_name) == nuclei_anot_list)
-
-        annotation = [
-            {
-                "name": anot_name[i],
-                "elements": nuclei_anot_list[i]
-            }
-
-            for i in range(len(anot_name))
-        ]
-
-    else:
-
-        annotation = {
-            "name":     anot_name,
-            "elements": nuclei_anot_list
-        }
-
-    out_file = out_file_name + '.anot'
-
-    with open(out_file, 'w') as annotation_file:
-        json.dump(annotation, annotation_file)
 
 
 def main(args):
@@ -510,9 +399,11 @@ def main(args):
 
     start_time = time.time()
 
+    # src_mu_lab, src_sigma_lab = htk_cnorm.reinhard_stats(
+    #     args.inputImageFile, 0.01, magnification=args.analysis_mag,
+    #     tissue_seg_mag=0.625)
     src_mu_lab, src_sigma_lab = htk_cnorm.reinhard_stats(
-        args.inputImageFile, 0.01, magnification=args.analysis_mag,
-        tissue_seg_mag=0.625)
+        args.inputImageFile, 0.01, magnification=args.analysis_mag)
 
     print('Reinahrd stats')
     print(src_mu_lab, src_sigma_lab)
@@ -538,16 +429,13 @@ def main(args):
     tile_nuclei_list = []
     num_nuclie = []
     annotation_dict = []
+    analysis_dict = []
+
     annotation_dict_list = []
     nuclei_annot_list = []
 
     try:
-        # count = 0
         for tile in ts.tileIterator(**it_kwargs):
-            # if count > 40:
-            #     break
-            # else:
-            #     count = count + 1
 
             tile_position = tile['tile_position']['position']
             if is_wsi and tile_fgnd_frac_list[tile_position] <= args.min_fgnd_frac:
@@ -572,6 +460,7 @@ def main(args):
             tile_nuclei_list.append(tmp_csv['ObjectsDict'])
             num_nuclie.append(tmp_csv['NumObjects'])
             annotation_dict.append(tmp_csv['AnnotationDict'])
+            analysis_dict.append(tmp_csv['AnalysisDict'])
 
         prep_time_profiler,\
             color_deconv_time_profiler,\
@@ -582,21 +471,22 @@ def main(args):
             tile_shapes,\
             tile_nuclei_list,\
             num_nuclie,\
-            annotation_dict = dask.compute(prep_time_profiler,
-                                           color_deconv_time_profiler,
-                                           total_loading_time_profiler,
-                                           ckpt_loading_time_profiler,
-                                           model_inference_time_profiler,
-                                           detection_time_profiler,
-                                           tile_shapes,
-                                           tile_nuclei_list,
-                                           num_nuclie,
-                                           annotation_dict
-                                           )
+            annotation_dict,\
+            analysis_dict = dask.compute(prep_time_profiler,
+                                         color_deconv_time_profiler,
+                                         total_loading_time_profiler,
+                                         ckpt_loading_time_profiler,
+                                         model_inference_time_profiler,
+                                         detection_time_profiler,
+                                         tile_shapes,
+                                         tile_nuclei_list,
+                                         num_nuclie,
+                                         annotation_dict,
+                                         analysis_dict
+                                         )
 
         nuclei_annot_list = list(
             itertools.chain.from_iterable(list(tile_nuclei_list)))
-
         num_nuclei = len(nuclei_annot_list)
 
         nuclei_detection_time = time.time() - start_time
@@ -626,30 +516,33 @@ def main(args):
                                    'CKPTLoadingTime', 'ModelInfernceTime',
                                    'DetectionTime',
                                    'ROIShape',
-                                   # 'ObjectsDict',
                                    'NumObjects']
                           )
-        df.to_csv(args.outputTimeProfilingFile)
-
-        df = pd.DataFrame(annotation_dict_list)
-        df.to_csv('Annotations.csv')
-        #
-        # Write annotation file
-        #
-        print('\n>> Writing annotation file ...\n')
-
-        out_file_name = os.path.basename(args.inputImageFile)
-        out_file_prefix = os.path.join(
-            args.output_annotation_dir, out_file_name)
-        annot_name = out_file_name + '-whole-slide-nuclei-fasterRCNN'
-
-        save_nuclei_annotation(nuclei_annot_list, annot_name, out_file_prefix)
+        df.to_csv(args.outputNucleiDetectionTimeProfilingFile)
 
     # ====================================================================================
+    # ======================= Actual Annotation Writing ======================
     # ====================================================================================
-    # ====================================================================================
+
+    print('\n>> Writing annotation file ...\n')
+
+    annot_fname = os.path.splitext(
+        os.path.basename(args.outputNucleiAnnotationFile))[0]
+
+    annotation = {
+        "name":     annot_fname + '-cell-' + args.nuclei_annotation_format,
+        "elements": annotation_dict_list
+    }
+
+    with open(args.outputNucleiAnnotationFile, 'w') as annotation_file:
+        json.dump(annotation, annotation_file, indent=2, sort_keys=False)
+
+    total_time_taken = time.time() - total_start_time
+
+    print('Total analysis time = {}'.format(
+        cli_utils.disp_time_hms(total_time_taken)))
 
 
 if __name__ == "__main__":
 
-    main(args)
+    main(CLIArgumentParser().parse_args())

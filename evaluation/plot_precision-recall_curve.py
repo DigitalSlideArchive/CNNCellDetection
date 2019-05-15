@@ -9,24 +9,14 @@ import pandas as pd
 from sklearn.metrics import auc
 import os
 
-MODE = 'Global'  # ['Global', 'Local']
 
+def get_stats_and_plot(filename, args):
 
-if MODE == 'Local':
-    PATH = './Results/Eval_regular/Img-wise-Tables/'
-else:
-    PATH = './Results/Eval_regular/'
+    mode = args["mode"]
+    dst_path = args["dst_path"]
+    do_plot = args["do_plot"]
 
-
-if not os.path.exists(
-        os.path.join(os.path.abspath(os.path.join(PATH, '..')), 'Plots')):
-    os.makedirs(os.path.join(os.path.abspath(
-        os.path.join(PATH, '..')), 'Plots'))
-
-
-def get_stats_and_plot(filename, do_plot=False):
-
-    df = pd.read_csv(os.path.join(PATH, filename))
+    df = pd.read_csv(filename)
 
     probabilities = df['PredScore']
     classes = df['GTLabel']
@@ -45,9 +35,6 @@ def get_stats_and_plot(filename, do_plot=False):
     print[recall[0], precision[0]]
     print[recall[-1], precision[-1]]
 
-    # auc_val = auc(recall, precision)
-    # print 'AUC score : ', auc_val
-
     tmp_PR = list(set(zip(precision, recall)))
     dff = pd.DataFrame(tmp_PR, columns=['Precision', 'Recall'])
     dff = dff.sort_values(by=['Recall'])
@@ -55,8 +42,8 @@ def get_stats_and_plot(filename, do_plot=False):
     auc_val = auc(dff['Recall'], dff['Precision'])
     print 'AUC score : ', auc_val
 
-    FigSize = (9, 9)
-    fig = plt.figure(figsize=FigSize)
+    fig_size = (9, 9)
+    fig = plt.figure(figsize=fig_size)
     ax = fig.add_subplot(111, aspect='equal')
     ax.set_aspect('equal')
     plt.step(dff['Recall'], dff['Precision'], where='post', color='b')
@@ -72,38 +59,61 @@ def get_stats_and_plot(filename, do_plot=False):
     # ============================ Saving SVG Files ===========================
     # =========================================================================
 
-    if MODE == 'Local':
-        fig.savefig(os.path.join(os.path.abspath(os.path.join(PATH, '..')),
+    if mode == 'Local':
+        fig.savefig(os.path.join(dst_path,
                                  'Plots',
-                                 # 'PRCurve-AUC=%s - %s.svg' %
-                                 # 'PRCurve-AUC=%s - %s.png' %
-                                 # (auc_val, filename)),
-                                 # '{} - PRCurve-AUC={0:.2f}.png'.format(
-                                 #     filename[:-4], auc_val)),
                                  '%s - PRCurve-AUC=%.2f.png' % (
                                      filename[:-4], auc_val)),
                     bbox_inches='tight')
     else:
-        fig.savefig(os.path.join(os.path.abspath(os.path.join(PATH, '..')),
-                                 # 'PRCurve-AUC=%s - %s.svg' %
-                                 # 'Overall_PRCurve-AUC=%s - %s.png' %
-                                 # (auc_val, filename)),
+        fig.savefig(os.path.join(dst_path,
+                                 'Plots',
                                  'Overall_PRCurve-AUC=%.2f.png'.format(auc_val)),
                     bbox_inches='tight')
 
     return recall, precision
 
 
-if __name__ == '__main__':
+def run(args):
+
+    mode = args["mode"]
+    csv_path = args["csv_path"]
+    dst_path = args["dst_path"]
+
+    if mode == 'Local':
+        csv_path = os.path.join(csv_path, 'Img-wise-Tables')
+
+    if not os.path.exists(os.path.join(dst_path, 'Plots')):
+        os.makedirs(os.path.join(dst_path, 'Plots'))
 
     if MODE == 'Local':
-        files = os.listdir(PATH)
-        files = [file for file in files if file != '.DS_Store']
+        files = os.listdir(csv_path)
+        files = [os.path.join(csv_path, file)
+                 for file in files if file != '.DS_Store']
     else:
-        files = ['mapped_table.csv']
+        files = [os.path.join(csv_path, 'mapped_table.csv')]
 
     files.sort()
-    # files = files[:-2]
-    # files = files[-2:]
     for file in files:
-        P, R = get_stats_and_plot(file)
+        P, R = get_stats_and_plot(file, args)
+
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(
+        description='Eval the predictions based on confidence score.')
+
+    parser.add_argument(
+        '--c', '--csv_path', help='path which has csv files prepared with confidence scores', required=True)
+    parser.add_argument(
+        '--d', '--dst_path', help='desination path which saves the results', required=True)
+
+    parser.add_argument(
+        '--p', '--do_plot', default=False, help='boolean to either plot or not the results')
+
+    parser.add_argument(
+        '--m', '--mode', default='Global', choices=['Global', 'Local'], help='mode in which the csv files are run, either as individual experiments or single experiment')
+
+    args = vars(parser.parse_args())
+
+    run(args)

@@ -8,10 +8,6 @@ import xml.etree.ElementTree as ET
 import numpy as np
 
 
-MODE = 'COLLECTIVE'  # ['COLLECTIVE', 'SEPARATE']
-PAD_SIZE = 0
-
-
 """
 GT JSON specs
 {"img_id": [[ ... ]],
@@ -29,7 +25,7 @@ PRED JSON specs
 """
 
 
-def load_pred_json(name, JSON_dict):
+def load_pred_json(name, JSON_dict, pad_size):
     """
     This function will load each predicted JSON files.
     Read each predicted object's 4 coordinates and its labels with confidence score/probability to be an object.
@@ -62,7 +58,7 @@ def load_pred_json(name, JSON_dict):
     print('Total Number of Un-Filtered Label Counts per ROI : ', len(pred_list))
 
     # ++++++++++++++++++++++++++ fILTERING ++++++++++++++++++++++++++
-    # Renove the cells, which are close to borders within the PAD_SIZE pixels
+    # Renove the cells, which are close to borders within the pad_size pixels
     pred_filtered_list = []
     for obj in preds:
 
@@ -76,8 +72,8 @@ def load_pred_json(name, JSON_dict):
 
         # Check if bbox center is inside the valid error measurable region of
         # ROI.
-        # if (x_cent >= PAD_SIZE) and (x_cent <= W - PAD_SIZE)\
-        #         and (y_cent >= PAD_SIZE) and (y_cent <= H - PAD_SIZE):
+        # if (x_cent >= pad_size) and (x_cent <= W - pad_size)\
+        #         and (y_cent >= pad_size) and (y_cent <= H - pad_size):
         if True:
 
             value = [obj['label'],      # object class - objectness
@@ -105,7 +101,7 @@ def load_pred_json(name, JSON_dict):
     return pred_filtered_list, JSON_dict
 
 
-def load_gt_xml(name, JSON_dict):
+def load_gt_xml(name, JSON_dict, pad_size=0):
     """
     This function will load each XML ground truth files.
     Read each objects 4 coordinates and their labels on a ROI.
@@ -140,7 +136,7 @@ def load_gt_xml(name, JSON_dict):
     size = [int(si.text) for si in size]
 
     # ++++++++++++++++++++++++++ fILTERING ++++++++++++++++++++++++++
-    # Renove the cells, which are close to borders within the PAD_SIZE pixels
+    # Renove the cells, which are close to borders within the pad_size pixels
     xml_FILTERED_list = []
     for member in root.findall('object'):
         x1 = int(member[4][0].text)
@@ -153,8 +149,8 @@ def load_gt_xml(name, JSON_dict):
 
         # Check if bbox center is inside the valid error measurable region of
         # ROI.
-        if (x_cent >= PAD_SIZE) and (x_cent <= W - PAD_SIZE)\
-                and (y_cent >= PAD_SIZE) and (y_cent <= H - PAD_SIZE):
+        if (x_cent >= pad_size) and (x_cent <= W - pad_size)\
+                and (y_cent >= pad_size) and (y_cent <= H - pad_size):
             # if True:
 
             value = [member[0].text,    # object class - objectness
@@ -174,73 +170,93 @@ def load_gt_xml(name, JSON_dict):
     return xml_FILTERED_list, JSON_dict, size
 
 
-if __name__ == '__main__':
+def convert(args):
 
-    if MODE == 'SEPARATE':
-        if not os.path.exists('./Results/Reg-Eval/GT'):
-            os.makedirs('./Results/Reg-Eval/GT')
-        if not os.path.exists('./Results/Reg-Eval/Pred'):
-            os.makedirs('./Results/Reg-Eval/Pred')
+    gt_path = args["groundtruth_path"]
+    pred_path = args["prediction_path"]
+    dest_path = args["dest_path"]
+    mode = args["mode"]
+    pad_size = args["pad_size"]
+
+    if mode == 'Local':
+        if not os.path.exists(os.path.join(dest_path, 'GT')):
+            os.makedirs(os.path.join(dest_path, 'GT'))
+        if not os.path.exists(os.path.join(dest_path, 'Pred')):
+            os.makedirs(os.path.join(dest_path, 'Pred'))
 
     # ==========================================================================
     # ==================== Ground Truth XML 2 JSON conversion ================
     # ==========================================================================
 
-    XML_DIR = './test_XMLs/'
-    XML_files = os.listdir(XML_DIR)
-    XML_files = [XML_file for XML_file in XML_files if XML_file != '.DS_Store']
+    gt_files = os.listdir(gt_path)
+    gt_files = [gt_file for gt_file in gt_files if gt_file != '.DS_Store']
 
-    if MODE != 'SEPARATE':
+    if MODE != 'Local':
         json_dict = {}
-    for xmlfile in XML_files:
-        if MODE == 'SEPARATE':
+
+    for xmlfile in gt_files:
+        if MODE == 'Local':
             json_dict = {}
 
-        xmlfilename = os.path.join(XML_DIR, xmlfile)
-        _, json_gt_dict, _ = load_gt_xml(xmlfilename, json_dict)
+        xmlfilename = os.path.join(gt_path, xmlfile)
+        _, json_gt_dict, _ = load_gt_xml(xmlfilename, json_dict, pad_size)
 
-        if MODE == 'SEPARATE':
+        if MODE == 'Local':
             print json_gt_dict
-            with open('./Results/Reg-Eval/GT/formatted-%s.json' % xmlfile[:-4], 'w') as gt_json:
+            with open(os.path.join(dest_path, 'GT', 'formatted-%s.json' % xmlfile[:-4], 'w')) as gt_json:
                 gt_json.write(json.dumps(json_gt_dict))
 
-    if MODE != 'SEPARATE':
+    if MODE != 'Local':
         print json_gt_dict
-        # with open('./Results/Reg-Eval/GT/formatted-%s.json' % xmlfile[:-4],
-        # 'w') as gt_json:
-        with open('./Results/Reg-Eval/collective-formatted-GT.json', 'w') as gt_json:
+        with open(os.path.join(dest_path, 'GT', 'collective-formatted-GT.json', 'w')) as gt_json:
             gt_json.write(json.dumps(json_gt_dict))
 
-    # # ====================================================================
-    # # ==================== Predictions JSON 2 JSON conversion ============
-    # # ====================================================================
+    # ====================================================================
+    # ==================== Predictions JSON 2 JSON conversion ============
+    # ====================================================================
 
-    JSON_DIR = './outputs/JSON/'
-    JSON_files = os.listdir(JSON_DIR)
-    JSON_files = [
-        JSON_file for JSON_file in JSON_files if JSON_file != '.DS_Store']
+    pred_files = os.listdir(pred_path)
+    pred_files = [
+        pred_file for pred_file in pred_files if pred_file != '.DS_Store']
 
-    if MODE != 'SEPARATE':
+    if mode != 'Local':
         json_dict = {}
-    for jsonfile in JSON_files:
-        if MODE == 'SEPARATE':
+    for jsonfile in pred_files:
+        if mode == 'Local':
             json_dict = {}
 
-        jsonfilename = os.path.join(JSON_DIR, jsonfile)
+        jsonfilename = os.path.join(pred_path, jsonfile)
         print(jsonfilename)
-        _, json_pred_dict = load_pred_json(jsonfilename, json_dict)
+        _, json_pred_dict = load_pred_json(jsonfilename, json_dict, pad_size)
 
-        if MODE == 'SEPARATE':
+        if mode == 'Local':
             print json_pred_dict
-            with open('./Results/Reg-Eval/Pred/formatted-%s.json' % jsonfile[5:-5], 'w') as pred_json:
+            with open(os.path.join(dest_path, 'Pred', 'formatted-%s.json' % jsonfile[5:-5], 'w')) as pred_json:
                 pred_json.write(json.dumps(json_pred_dict))
 
-    if MODE != 'SEPARATE':
+    if mode != 'Local':
         print json_pred_dict
-        # with open('./Results/Reg-Eval/Pred/formatted-%s.json' %
-        # jsonfile[5:-5], 'w') as pred_json:
-        with open('./Results/Reg-Eval/collective-formatted-Pred.json', 'w') as pred_json:
+        with open(os.path.join(dest_path, 'Pred', 'collective-formatted-Pred.json', 'w')) as pred_json:
             pred_json.write(json.dumps(json_pred_dict))
 
-    print len(XML_files)
-    print len(JSON_files)
+
+if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser(
+        description='Eval the predictions based on confidence score.')
+
+    parser.add_argument(
+        '--gt', '--groundtruth_path', help='ground truth files path in xml format', required=True)
+    parser.add_argument(
+        '--p', '--prediction_path', help='prediction files path in json format', required=True)
+    parser.add_argument(
+        '--d', '--dest_path', help='destination path to save results and overlays', required=True)
+
+    parser.add_argument(
+        '--m', '--mode', default='Global', choices=['Global', 'Local'], help='mode in which the csv files are run, either as individual experiments or single experiment')
+    parser.add_argument(
+        '--ps', '--pad_size', type=int, default=0, help='pixels left from all 4 borders')
+
+    args = vars(parser.parse_args())
+
+    convert(args)

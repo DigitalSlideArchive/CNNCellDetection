@@ -1,0 +1,23 @@
+train:
+  # Run name for the training session.
+  run_name: my-run
+  # Directory in which model checkpoints & summaries (for Tensorboard) will be saved.
+  # 1.
+  # job_dir: jobs_resnet50_ff1ep2/
+  # 2.
+  # job_dir: jobs_resnet50_ff2ep4/
+  # 3.
+  job_dir: jobs_resnet101_ff2ep4/
+
+
+
+dataset:
+  type: object_detection
+  # From which directory to read the dataset.
+  dir: tf_dataset
+
+model:
+  type: fasterrcnn
+  network:
+    # Total number of classes to predict.
+    num_classes: 1
