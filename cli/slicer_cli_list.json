@@ -1,5 +1,8 @@
 {
-  "FasterNuclieDetection": {
+  "FasterNuclieDetectionCPU": {
+    "type"    : "python"
+  },
+  "FasterNuclieDetectionGPU": {
     "type"    : "python"
   }
 }
