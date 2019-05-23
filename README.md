@@ -98,6 +98,10 @@ you may want to execute this command by standing inside **luminoth/** folder.
 $ lumi train -c train/sample_config.yml
 ```
 
+To monitor the real-time performance of the training model, we can enable tensorboard.
+```
+$ tensorboard --logdir=<path_to_dir_jobs/my-run/>
+```
 
 
 
@@ -136,6 +140,10 @@ Evaluation overlays of prediction example-1                |  Evaluation overlay
 # Nuclei Detection Web CLI Plugin
 
 An extended plugin for [girder/slicer_cli_web](https://github.com/girder/slicer_cli_web)
+
+The complete workflow of the Dask-TensorFlow enabled pipeline is below ...
+![Alt text](cli/FasterNuclieDetectionCPU/pipeline-workflow.png?raw=true "Title")
+
 
 To build a Docker Image from this CLI Plugin,
 
