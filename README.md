@@ -107,6 +107,7 @@ If you want to modify the parameters of the model or training, you can do in the
 '**luminoth/models/fasterrcnn/**'. Also there is another very short config file(**sample_config.yml**) inside the path '**examples/**'. Therefore, you can copy the entire
 base_config.yml, make changes to it, and provide its path with **-c** flag in the CLI so that the parameters will be overidden while initiating the training.
 
+Frequently changeable parameters can be found here: https://github.com/cramraj8/luminoth/blob/nuclei-detection/luminoth/README.md
 
 
 
