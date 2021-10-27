@@ -16,7 +16,7 @@ cmake==3.13.3
 cryptography==2.6.1
 cycler==0.10.0
 Cython==0.29.7
-dask==1.2.1
+dask==2021.10.0
 decorator==4.4.0
 defusedxml==0.6.0
 distributed==1.27.1
