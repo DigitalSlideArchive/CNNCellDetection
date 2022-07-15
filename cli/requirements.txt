@@ -19,7 +19,7 @@ Cython==0.29.7
 dask==1.2.1
 decorator==4.4.0
 defusedxml==0.6.0
-distributed==1.27.1
+distributed==2021.10.0
 dm-sonnet==1.23
 easydict==1.8
 entrypoints==0.3
