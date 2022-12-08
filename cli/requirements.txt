@@ -7,7 +7,7 @@ bcrypt==3.1.6
 bleach==1.5.0
 bokeh==1.1.0
 cachetools==3.1.0
-certifi==2019.3.9
+certifi==2022.12.7
 cffi==1.12.3
 chardet==3.0.4
 click==6.7
